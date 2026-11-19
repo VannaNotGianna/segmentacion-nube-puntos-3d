@@ -14,6 +14,11 @@ CLASS_COLORS = {
     1: (0.55, 0.80, 0.95),   # techo: celeste
     2: (0.95, 0.85, 0.10),   # plataforma: amarillo
     3: (0.95, 0.55, 0.15),   # horizontal_otro: naranja
+    4: (0.10, 0.65, 0.20),   # columna: verde
+    5: (0.85, 0.10, 0.10),   # tubería: rojo
+    6: (0.55, 0.20, 0.75),   # viga / estructura metálica: morado
+    7: (0.95, 0.55, 0.15),   # maquinaria: naranja
+    8: (0.75, 0.75, 0.75),   # otros: gris
 }
 
 

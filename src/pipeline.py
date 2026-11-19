@@ -10,12 +10,27 @@ from pathlib import Path
 
 import numpy as np
 
-from .clustering import CLASS_NAMES, stage1_structure
+from .clustering import CLASS_NAMES, MATERIAL_NAMES, stage1_structure, stage2_objects
 from .preprocessing import load_point_cloud, remove_outliers, to_arrays, voxel_downsample
-from .visualization import colors_from_classes, plot_projections, save_colored_ply
+from .visualization import colors_from_classes, colors_from_segments, plot_projections, save_colored_ply
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT = ROOT / "data/raw/FARO_Scan_Full_Sub1_down3_with_normals.ply"
+
+
+def prepare_data(path=DEFAULT_INPUT, voxel: float = 0.08, verbose: bool = True):
+    """Carga, submuestrea y filtra la nube. Devuelve PointCloudData."""
+    if verbose:
+        print("Cargando", path)
+    pcd = load_point_cloud(path)
+    n_orig = len(pcd.points)
+    pcd = voxel_downsample(pcd, voxel)
+    pcd, _ = remove_outliers(pcd)
+    data = to_arrays(pcd)
+    if verbose:
+        print(f"  puntos originales: {n_orig:,}")
+        print(f"  tras vóxel {voxel} m y filtro de outliers: {len(data):,}")
+    return data
 
 
 def main():
@@ -33,14 +48,7 @@ def main():
     for d in (fig_dir, pc_dir, label_dir):
         d.mkdir(parents=True, exist_ok=True)
 
-    print("Cargando", args.input)
-    pcd = load_point_cloud(args.input)
-    print(f"  puntos originales: {len(pcd.points):,}")
-
-    pcd = voxel_downsample(pcd, args.voxel)
-    pcd, _ = remove_outliers(pcd)
-    data = to_arrays(pcd)
-    print(f"  tras vóxel {args.voxel} m y filtro de outliers: {len(data):,}")
+    data = prepare_data(args.input, args.voxel)
 
     print("Etapa 1: estructura")
     s1 = stage1_structure(data, surface_eps=args.surface_eps)
@@ -58,6 +66,29 @@ def main():
     plot_projections(data.points, colors, fig_dir / "02_estructura.png",
                      "Etapa 1: piso (azul), techo (celeste), plataforma (amarillo), "
                      "horizontal otro (naranja), sin clasificar (gris)")
+
+    print("Etapa 2: objetos")
+    s2 = stage2_objects(data, s1)
+    print(f"  piso de referencia z = {s2['floor_z']:.2f} m")
+    print("  clusters de color (RGB medio -> material):")
+    for rgb, mat in s2["colors"]:
+        print(f"    {np.round(rgb, 2)} -> {MATERIAL_NAMES[mat]}")
+    print(f"  objetos DBSCAN: {s2['objects'].max() + 1}")
+    for c, n in zip(*np.unique(s2["classes"], return_counts=True)):
+        print(f"  {CLASS_NAMES[c]:<16} {n:>8,}")
+
+    final_colors = colors_from_classes(s2["classes"])
+    save_colored_ply(pc_dir / "segmentacion_final.ply", data.points, final_colors, data.normals)
+    np.save(label_dir / "clases_final.npy", s2["classes"])
+    mat_rgb = np.array([(0.85, 0.85, 0.85), (0.2, 0.7, 0.2), (0.7, 0.3, 0.1), (0.15, 0.15, 0.4)])
+    mat_colors = np.where(s2["materials"][:, None] >= 0, mat_rgb[np.maximum(s2["materials"], 0)], 1.0)
+    plot_projections(data.points, mat_colors, fig_dir / "03_materiales_color.png",
+                     "Etapa 2b: materiales por color (claro, verde, óxido, oscuro)")
+    plot_projections(data.points, colors_from_segments(s2["objects"]), fig_dir / "04_objetos_dbscan.png",
+                     "Etapa 2c: objetos DBSCAN por material")
+    plot_projections(data.points, final_colors, fig_dir / "05_segmentacion_final.png",
+                     "Final: piso (azul), techo (celeste), plataforma (amarillo), columna (verde), "
+                     "tubería (rojo), viga/estructura (morado), maquinaria (naranja), otros (gris)")
     print("Resultados guardados en results/")
 
 
