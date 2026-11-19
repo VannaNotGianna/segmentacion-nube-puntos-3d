@@ -9,8 +9,10 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
-from .clustering import CLASS_NAMES, MATERIAL_NAMES, stage1_structure, stage2_objects
+from .clustering import (CLASS_NAMES, MATERIAL_NAMES, OTHER, stage1_structure,
+                         stage2_objects, transfer_labels)
 from .preprocessing import load_point_cloud, remove_outliers, to_arrays, voxel_downsample
 from .visualization import colors_from_classes, colors_from_segments, plot_projections, save_colored_ply
 
@@ -18,11 +20,17 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT = ROOT / "data/raw/FARO_Scan_Full_Sub1_down3_with_normals.ply"
 
 
-def prepare_data(path=DEFAULT_INPUT, voxel: float = 0.08, verbose: bool = True):
-    """Carga, submuestrea y filtra la nube. Devuelve PointCloudData."""
+def prepare_data(path=DEFAULT_INPUT, voxel: float = 0.08, verbose: bool = True,
+                 return_full: bool = False):
+    """Carga, submuestrea y filtra la nube.
+
+    Devuelve PointCloudData submuestreado; con `return_full=True` devuelve
+    además la nube original completa: (submuestreada, original).
+    """
     if verbose:
         print("Cargando", path)
     pcd = load_point_cloud(path)
+    full = to_arrays(pcd) if return_full else None
     n_orig = len(pcd.points)
     pcd = voxel_downsample(pcd, voxel)
     pcd, _ = remove_outliers(pcd)
@@ -30,7 +38,7 @@ def prepare_data(path=DEFAULT_INPUT, voxel: float = 0.08, verbose: bool = True):
     if verbose:
         print(f"  puntos originales: {n_orig:,}")
         print(f"  tras vóxel {voxel} m y filtro de outliers: {len(data):,}")
-    return data
+    return (data, full) if return_full else data
 
 
 def main():
@@ -45,10 +53,11 @@ def main():
     fig_dir = ROOT / "results/figures"
     pc_dir = ROOT / "results/point_clouds"
     label_dir = ROOT / "results/labels"
-    for d in (fig_dir, pc_dir, label_dir):
+    metric_dir = ROOT / "results/metricas"
+    for d in (fig_dir, pc_dir, label_dir, metric_dir):
         d.mkdir(parents=True, exist_ok=True)
 
-    data = prepare_data(args.input, args.voxel)
+    data, full = prepare_data(args.input, args.voxel, return_full=True)
 
     print("Etapa 1: estructura")
     s1 = stage1_structure(data, surface_eps=args.surface_eps)
@@ -89,6 +98,22 @@ def main():
     plot_projections(data.points, final_colors, fig_dir / "05_segmentacion_final.png",
                      "Final: piso (azul), techo (celeste), plataforma (amarillo), columna (verde), "
                      "tubería (rojo), viga/estructura (morado), maquinaria (naranja), otros (gris)")
+
+    print("Paso 4: transferencia a la nube original")
+    max_dist = 2 * args.voxel
+    full_classes, dist = transfer_labels(full.points, data.points, s2["classes"], max_dist=max_dist)
+    n_far = int((dist > max_dist).sum())
+    print(f"  {len(full):,} puntos; {n_far:,} a más de {max_dist:.2f} m -> {CLASS_NAMES[OTHER]}")
+    rows = []
+    for c, n in zip(*np.unique(full_classes, return_counts=True)):
+        print(f"  {CLASS_NAMES[c]:<16} {n:>9,}  ({n / len(full):6.1%})")
+        rows.append({"clase": CLASS_NAMES[c], "puntos": int(n), "porcentaje": n / len(full)})
+    pd.DataFrame(rows).to_csv(metric_dir / "conteo_clases_nube_completa.csv", index=False)
+
+    out_ply = pc_dir / "segmentacion_final_completa.ply"
+    save_colored_ply(out_ply, full.points, colors_from_classes(full_classes), full.normals)
+    np.save(label_dir / "clases_final_completa.npy", full_classes)
+    print(f"  PLY entregable: {out_ply}")
     print("Resultados guardados en results/")
 
 

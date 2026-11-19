@@ -40,6 +40,19 @@ def test_cluster_surfaces_warns_when_eps_too_small():
         C.cluster_surfaces(plane, eps=0.05)
 
 
+def test_floor_is_lowest_large_surface_even_if_ceiling_is_bigger():
+    rng = np.random.default_rng(4)
+    floor = np.c_[rng.uniform(0, 10, (2000, 2)), rng.normal(0, 0.02, 2000)]
+    ceiling = np.c_[rng.uniform(0, 10, (2500, 2)), 8 + rng.normal(0, 0.02, 2500)]
+    debris = np.c_[rng.uniform(0, 0.3, (50, 2)), -1 + rng.normal(0, 0.02, 50)]  # pequeño y bajo
+    pts = np.vstack([floor, ceiling, debris])
+    segs = np.repeat([0, 1, 2], [2000, 2500, 50])
+    classes = C.label_horizontal_surfaces(pts, segs)
+    assert (classes[:2000] == C.FLOOR).all()
+    assert (classes[2000:4500] == C.CEILING).all()
+    assert not (classes[4500:] == C.FLOOR).any()
+
+
 def test_stage1_on_scene(scene):
     data, truth = scene
     s1 = C.stage1_structure(data)
@@ -112,6 +125,34 @@ def test_smooth_labels_fixes_isolated_point_and_respects_fixed():
     fixed[15] = True
     out = C.smooth_labels(pts, labels, k=5, fixed=fixed)
     assert out[15] == C.MACHINERY
+
+
+def test_transfer_labels_nearest_and_far_points():
+    sparse = np.array([[0.0, 0, 0], [1.0, 0, 0]])
+    sparse_labels = np.array([C.PIPE, C.COLUMN])
+    full = np.array([[0.1, 0, 0], [0.9, 0, 0], [0.45, 0, 0], [5.0, 0, 0]])
+    labels, dist = C.transfer_labels(full, sparse, sparse_labels, max_dist=0.5)
+    np.testing.assert_array_equal(labels, [C.PIPE, C.COLUMN, C.PIPE, C.OTHER])
+    assert dist[3] == pytest.approx(4.0)
+
+
+def test_transfer_labels_on_scene(scene):
+    """Submuestrear la escena, segmentar y volver a la resolución original."""
+    import open3d as o3d
+
+    from src.preprocessing import to_arrays, voxel_downsample
+
+    data, truth = scene
+    pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(data.points))
+    pcd.colors = o3d.utility.Vector3dVector(data.colors)
+    pcd.normals = o3d.utility.Vector3dVector(data.normals)
+    down = to_arrays(voxel_downsample(pcd, 0.16))
+    assert len(down) < 0.5 * len(data)
+
+    s2 = C.stage2_objects(down, C.stage1_structure(down, surface_eps=0.3), object_eps=0.4)
+    full_labels, _ = C.transfer_labels(data.points, down.points, s2["classes"], max_dist=0.32)
+    assert len(full_labels) == len(data)
+    assert (full_labels == truth).mean() > 0.95
 
 
 # --------------------------------------------------------------------------- #

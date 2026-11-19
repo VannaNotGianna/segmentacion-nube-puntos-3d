@@ -19,6 +19,7 @@ import warnings
 
 import numpy as np
 from matplotlib.colors import rgb_to_hsv
+from scipy.spatial import cKDTree
 from sklearn.cluster import DBSCAN, KMeans
 from sklearn.neighbors import NearestNeighbors
 
@@ -134,11 +135,15 @@ def label_horizontal_surfaces(
     floor_band: float = 0.6,
     min_platform_area: float = 10.0,
     min_ceiling_points: int = 200,
+    large_fraction: float = 0.2,
 ) -> np.ndarray:
     """Asigna clase a cada punto horizontal según la superficie a la que pertenece.
 
-    - Piso: la superficie más grande; además, toda superficie cuya mediana de Z
-      quede a menos de `floor_band` m de la del piso.
+    - Piso: la más baja de las superficies grandes (al menos `large_fraction`
+      de los puntos de la mayor); además, toda superficie cuya mediana de Z
+      quede a menos de `floor_band` m de la del piso. No se usa simplemente
+      "la más grande" porque un techo continuo puede tener tantos puntos
+      como el piso.
     - Techo: superficies con mediana de Z dentro de los `ceiling_band` m
       superiores de la nube y al menos `min_ceiling_points` puntos.
     - Plataforma: superficies intermedias con área XY >= `min_platform_area` m².
@@ -149,7 +154,8 @@ def label_horizontal_surfaces(
     if not stats:
         return classes
 
-    floor_z = stats[0]["z_median"]
+    large = [s for s in stats if s["n"] >= large_fraction * stats[0]["n"]]
+    floor_z = min(s["z_median"] for s in large)
     top_z = np.percentile(points[:, 2], 99.5)
 
     for s in stats:
@@ -354,6 +360,28 @@ def smooth_labels(points: np.ndarray, classes: np.ndarray, k: int = 10,
     if fixed is not None:
         voted[fixed] = classes[fixed]
     return voted
+
+
+def transfer_labels(full_points: np.ndarray, sparse_points: np.ndarray,
+                    sparse_labels: np.ndarray, max_dist: float | None = None,
+                    far_label: int = OTHER):
+    """Lleva las clases de la nube submuestreada a la nube original.
+
+    Cada punto original toma la clase del punto submuestreado más cercano.
+    Como los puntos submuestreados son centroides de vóxel, esto equivale a
+    heredar la clase del vóxel al que pertenecía el punto.
+
+    Los puntos a más de `max_dist` de cualquier punto submuestreado (p. ej. los
+    eliminados por el filtro de outliers) reciben `far_label`.
+
+    Devuelve (clases de la nube original, distancia al vecino usado).
+    """
+    tree = cKDTree(sparse_points)
+    dist, idx = tree.query(full_points, k=1, workers=-1)
+    labels = sparse_labels[idx]
+    if max_dist is not None:
+        labels = np.where(dist > max_dist, far_label, labels)
+    return labels, dist
 
 
 def stage2_objects(data: PointCloudData, stage1: dict, n_colors: int = 5,
