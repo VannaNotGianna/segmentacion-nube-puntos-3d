@@ -8,6 +8,7 @@ import argparse
 import sys
 from pathlib import Path
 
+import matplotlib
 import numpy as np
 import pandas as pd
 
@@ -20,6 +21,14 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT = ROOT / "data/raw/FARO_Scan_Full_Sub1_down3_with_normals.ply"
 
 
+def _display_path(path) -> str:
+    """Ruta relativa al proyecto si es posible (no expone rutas personales)."""
+    try:
+        return Path(path).resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def prepare_data(path=DEFAULT_INPUT, voxel: float = 0.08, verbose: bool = True,
                  return_full: bool = False):
     """Carga, submuestrea y filtra la nube.
@@ -28,7 +37,7 @@ def prepare_data(path=DEFAULT_INPUT, voxel: float = 0.08, verbose: bool = True,
     además la nube original completa: (submuestreada, original).
     """
     if verbose:
-        print("Cargando", path)
+        print("Cargando", _display_path(path))
     pcd = load_point_cloud(path)
     full = to_arrays(pcd) if return_full else None
     n_orig = len(pcd.points)
@@ -42,6 +51,7 @@ def prepare_data(path=DEFAULT_INPUT, voxel: float = 0.08, verbose: bool = True,
 
 
 def main():
+    matplotlib.use("Agg")  # sin ventanas: solo se guardan figuras
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")  # tildes en la consola de Windows
     parser = argparse.ArgumentParser(description="Segmentación de nube de puntos 3D")
@@ -113,7 +123,7 @@ def main():
     out_ply = pc_dir / "segmentacion_final_completa.ply"
     save_colored_ply(out_ply, full.points, colors_from_classes(full_classes), full.normals)
     np.save(label_dir / "clases_final_completa.npy", full_classes)
-    print(f"  PLY entregable: {out_ply}")
+    print(f"  PLY entregable: {_display_path(out_ply)}")
     print("Resultados guardados en results/")
 
 

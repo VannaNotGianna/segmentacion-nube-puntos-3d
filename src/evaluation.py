@@ -12,8 +12,6 @@ Uso (desde la raíz del proyecto):
 import sys
 
 import matplotlib
-
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -21,7 +19,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import adjusted_rand_score, davies_bouldin_score, silhouette_score
 
 from . import clustering as C
-from .pipeline import ROOT, prepare_data
+from .pipeline import ROOT, _display_path, prepare_data
 
 
 # --------------------------------------------------------------------------- #
@@ -108,6 +106,7 @@ def stability(data, baseline: np.ndarray, variants: dict) -> pd.DataFrame:
 
 # --------------------------------------------------------------------------- #
 def main():
+    matplotlib.use("Agg")  # sin ventanas: solo se guardan figuras
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     out_dir = ROOT / "results/metricas"
@@ -145,7 +144,7 @@ def main():
     stab = stability(data, baseline, variants)
     print(stab.to_string(index=False))
     stab.to_csv(out_dir / "estabilidad.csv", index=False)
-    print(f"\nResultados en {out_dir} y {fig_dir / '06_seleccion_k.png'}")
+    print(f"\nResultados en {_display_path(out_dir)} y {_display_path(fig_dir / '06_seleccion_k.png')}")
 
 
 if __name__ == "__main__":
