@@ -53,7 +53,7 @@ La elección de parámetros (k, eps, tamaño de vóxel) y su efecto se documenta
 data/raw/                 nube original (no incluida en el repositorio, ver 5.2)
 notebooks/                exploración, experimentos y capturas para el reporte
 src/
-  preprocessing.py        carga, submuestreo, filtro y características
+  preprocessing.py        carga, submuestreo y filtro de outliers
   clustering.py           etapas 1 y 2, transferencia de etiquetas
   visualization.py        colores por clase, exportación PLY, figuras y vistas 3D
   pipeline.py             ejecución completa del pipeline
@@ -131,7 +131,7 @@ Opciones: `--voxel` (tamaño de vóxel en metros, por defecto 0.08), `--surface-
 python -m pytest
 ```
 
-Ejecuta 34 pruebas en unos segundos: cada etapa por separado y el pipeline completo sobre una escena sintética con clases conocidas (piso, techo, columnas, tubería, viga y máquina).
+Ejecuta 31 pruebas en unos segundos: cada etapa por separado y el pipeline completo sobre una escena sintética con clases conocidas (piso, techo, columnas, tubería, viga y máquina).
 
 ### 6.3. Evaluación
 

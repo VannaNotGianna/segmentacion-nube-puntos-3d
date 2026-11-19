@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 import numpy as np
 import open3d as o3d
-from sklearn.preprocessing import StandardScaler
 
 
 @dataclass
@@ -50,34 +49,3 @@ def to_arrays(pcd: o3d.geometry.PointCloud) -> PointCloudData:
         colors=np.asarray(pcd.colors).copy(),
         normals=np.asarray(pcd.normals).copy(),
     )
-
-
-def build_features(
-    data: PointCloudData,
-    use_position: bool = True,
-    use_color: bool = True,
-    use_normals: bool = True,
-    weights: dict | None = None,
-) -> np.ndarray:
-    """Concatena atributos estandarizados en una matriz de características.
-
-    Las normales se usan en valor absoluto: el signo de la normal es arbitrario
-    (n y -n describen la misma superficie). `weights` permite dar más peso a un
-    grupo de atributos, p. ej. {"normals": 2.0}.
-    """
-    weights = weights or {}
-    blocks = []
-    if use_position:
-        blocks.append(("position", data.points))
-    if use_color:
-        blocks.append(("color", data.colors))
-    if use_normals:
-        blocks.append(("normals", np.abs(data.normals)))
-    if not blocks:
-        raise ValueError("Debe seleccionarse al menos un grupo de atributos")
-
-    feats = []
-    for name, block in blocks:
-        scaled = StandardScaler().fit_transform(block)
-        feats.append(scaled * weights.get(name, 1.0))
-    return np.hstack(feats)

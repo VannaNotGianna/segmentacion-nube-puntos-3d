@@ -225,6 +225,51 @@ submuestreado más cercano, que equivale a heredar la clase de su vóxel. El
 de 0.16\,m (los eliminados por el filtro de outliers) se asignan a la clase
 \emph{otros}.
 
+\subsection{Justificación de los métodos}
+
+La elección de cada algoritmo sigue los criterios vistos en la sesión de
+clustering del curso~\cite{curso}:
+
+\begin{itemize}
+  \item \textbf{K-Means para orientación y color.} En ambos casos se buscan
+        grupos compactos en un espacio de pocas dimensiones. Como K-Means puede
+        detenerse en un mínimo local según su inicialización, se usan varias
+        inicializaciones (\texttt{n\_init}): 10 para la orientación y 30 para el
+        color. Con 10 inicializaciones, el K-Means de color daba resultados
+        distintos según la semilla aleatoria; con 30 todas las semillas
+        coinciden en más del 99.8\,\% de los puntos.
+  \item \textbf{$k$ es una decisión; el codo y la silhouette son indicios.}
+        Para la orientación los indicios coinciden en $k=3$. Para el color, la
+        silhouette se mantiene en torno a 0.35 para todo $k$ entre 2 y 8, sin un
+        óptimo claro. Se eligió $k=5$ porque cada cluster corresponde a un
+        material reconocible, y se verificó que los grupos tengan sentido para
+        la tarea, ya que un clustering siempre devuelve los $k$ grupos pedidos.
+  \item \textbf{DBSCAN para la separación espacial.} Los objetos tienen formas
+        arbitrarias (tuberías curvas, estructuras en celosía) y hay puntos
+        aislados que deben quedar como ruido, situaciones en las que K-Means
+        falla y DBSCAN funciona bien. DBSCAN se aplica solo sobre la posición
+        (pocas dimensiones), y el submuestreo por vóxel homogeneiza la
+        densidad, ya que el escáner genera más puntos cerca de su posición y
+        DBSCAN usa un único $\varepsilon$.
+  \item \textbf{Un $\varepsilon$ estable.} Al cambiar el $\varepsilon$ de
+        superficies de 0.15 a 0.20\,m, o el $\varepsilon$ de objetos entre 0.15
+        y 0.25\,m, más del 98\,\% de los puntos conserva su clase. En cambio, con
+        un $\varepsilon$ de superficies de 0.10\,m, valor cercano a la
+        separación entre puntos, el 71\,\% de los puntos horizontales queda como
+        ruido y el piso deja de reconocerse.
+  \item \textbf{Unidades.} Ninguna etapa combina atributos con unidades
+        distintas: las normales están entre 0 y 1, la posición en metros y las
+        características de color son adimensionales. Por eso no fue necesario
+        estandarizar, y cada atributo se usa en la etapa donde es más
+        informativo en lugar de mezclarlos en una sola distancia.
+  \item \textbf{Métodos no utilizados.} El clustering jerárquico requiere
+        todas las distancias entre pares de puntos: con 454\,898 puntos son unos
+        $10^{11}$ pares (cerca de 800\,GB de memoria), por lo que no es viable.
+        Un modelo de mezcla gaussiana sería una alternativa para la etapa de
+        color, donde los grupos se superponen, y podría indicar qué tan segura
+        es la asignación de cada punto.
+\end{itemize}
+
 % ------------------------------------------------------------------
 \section{Resultados}
 % ------------------------------------------------------------------
@@ -319,6 +364,8 @@ puente grúa y la estructura metálica, así como la maquinaria apoyada en el pi
 % ------------------------------------------------------------------
 \begin{thebibliography}{9}
 % ------------------------------------------------------------------
+\bibitem{curso} J. Hurtado. Lecture 10 -- Clustering: the intuitive version.
+  Curso de Machine Learning, UTEC, 2026.
 \bibitem{dbscan} M. Ester, H.-P. Kriegel, J. Sander y X. Xu. A density-based
   algorithm for discovering clusters in large spatial databases with noise.
   \emph{Proceedings of KDD}, 1996.

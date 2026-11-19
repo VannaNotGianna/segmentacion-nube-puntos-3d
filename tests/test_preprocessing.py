@@ -1,8 +1,7 @@
 import numpy as np
 import open3d as o3d
-import pytest
 
-from src.preprocessing import PointCloudData, build_features, voxel_downsample
+from src.preprocessing import PointCloudData, voxel_downsample
 
 
 def _random_data(n=500, seed=0):
@@ -10,29 +9,6 @@ def _random_data(n=500, seed=0):
     normals = rng.normal(size=(n, 3))
     normals /= np.linalg.norm(normals, axis=1, keepdims=True)
     return PointCloudData(rng.uniform(0, 10, (n, 3)), rng.uniform(0, 1, (n, 3)), normals)
-
-
-def test_build_features_shape_and_scaling():
-    data = _random_data()
-    X = build_features(data)
-    assert X.shape == (len(data), 9)
-    np.testing.assert_allclose(X.mean(axis=0), 0, atol=1e-9)
-    np.testing.assert_allclose(X.std(axis=0), 1, atol=1e-6)
-
-
-def test_build_features_ignores_normal_sign():
-    data = _random_data()
-    flipped = PointCloudData(data.points, data.colors, -data.normals)
-    np.testing.assert_allclose(build_features(data), build_features(flipped))
-
-
-def test_build_features_weights_and_selection():
-    data = _random_data()
-    X = build_features(data, use_position=False, use_color=False, weights={"normals": 2.0})
-    assert X.shape == (len(data), 3)
-    np.testing.assert_allclose(X.std(axis=0), 2, atol=1e-6)
-    with pytest.raises(ValueError):
-        build_features(data, use_position=False, use_color=False, use_normals=False)
 
 
 def test_voxel_downsample_keeps_unit_normals():
