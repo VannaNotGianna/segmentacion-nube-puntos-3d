@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.ipynb_checkpoints/
+
+# Original and intermediate datasets
+data/raw/*
+data/processed/*
+
+# Generated results
+results/labels/*
+results/point_clouds/*
+results/figures/*
+
+# Local files
+.DS_Store
+Thumbs.db
