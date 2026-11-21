@@ -162,11 +162,11 @@ Las nubes PLY generadas pueden abrirse en [CloudCompare](https://www.cloudcompar
 
 ## 7. Integrantes
 
-- Integrante 1: Elizabeth Huamán
-- Integrante 2: [Nombre completo]
-- Integrante 3: [Nombre completo]
+- Elizabeth Huamán Santillán
+- Marialejandra Bautista Gastelo
+- Joaquín Arriaga Cosio
 
-**Grupo:** [Identificador]
+**Grupo:** 9
 
 ## 8. Entregables
 
