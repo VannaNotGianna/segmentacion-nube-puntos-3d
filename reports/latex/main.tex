@@ -108,10 +108,10 @@ sin ese paso, DBSCAN une casi todo en un único cluster.
                     inner sep=5pt, font=\small},
       flecha/.style={->, thick}]
     \node[etapa] (pre) {\textbf{Preprocesamiento:} submuestreo por vóxel (0.08\,m) y filtro de outliers};
-    \node[etapa, below=of pre] (e1a) {\textbf{Etapa 1a -- Orientación:} K-Means ($K=3$) sobre $|\mathbf{n}|$};
+    \node[etapa, below=of pre] (e1a) {\textbf{Etapa 1a -- Orientación:} K-Means ($K{=}3$) sobre $|\mathbf{n}|$};
     \node[etapa, below=of e1a] (e1b) {\textbf{Etapa 1b -- Superficies:} DBSCAN sobre XYZ de los puntos horizontales + reglas $\Rightarrow$ piso, techo, plataformas};
     \node[etapa, below=of e1b] (e2a) {\textbf{Etapa 2a -- Columnas:} cobertura vertical en planta + DBSCAN 2D sobre XY};
-    \node[etapa, below=of e2a] (e2b) {\textbf{Etapa 2b -- Materiales:} K-Means ($K=5$) sobre el color};
+    \node[etapa, below=of e2a] (e2b) {\textbf{Etapa 2b -- Materiales:} K-Means ($K{=}5$) sobre el color};
     \node[etapa, below=of e2b] (e2c) {\textbf{Etapa 2c -- Segmentos y clases:} DBSCAN por material + reglas de material y altura $\Rightarrow$ tubería, viga/estructura, maquinaria};
     \node[etapa, below=of e2c] (e2e) {\textbf{Etapa 2d -- Suavizado:} voto mayoritario entre los 10 vecinos más cercanos};
     \node[etapa, below=of e2e] (tr) {\textbf{Transferencia:} cada punto de la nube original toma la clase y el segmento del vecino más cercano};
@@ -514,11 +514,11 @@ en \texttt{results/metricas/segmentos.csv}.
 \begin{figure}[H]
   \centering
   \begin{subfigure}{0.49\textwidth}
-    \includegraphics[width=\textwidth]{20_vista_aerea.png}
+    \includegraphics[width=\textwidth, trim=400 0 230 105, clip]{20_vista_aerea.png}
     \caption{Clases semánticas (un color por clase).}
   \end{subfigure}\hfill
   \begin{subfigure}{0.49\textwidth}
-    \includegraphics[width=\textwidth]{22_segmentos_aerea.png}
+    \includegraphics[width=\textwidth, trim=400 0 230 105, clip]{22_segmentos_aerea.png}
     \caption{Segmentos geométricos (un color por segmento).}
   \end{subfigure}
   \caption{La misma vista con los dos niveles de segmentación. En (b), cada
