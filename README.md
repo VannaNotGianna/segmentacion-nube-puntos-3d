@@ -117,11 +117,14 @@ Tarda alrededor de 30 segundos y genera:
 | Archivo | Contenido |
 |---|---|
 | `results/point_clouds/segmentacion_final_completa.ply` | **Entregable:** nube original completa coloreada por clase |
+| `results/point_clouds/segmentos_individuales.ply` | Nube original completa con un color por segmento (cluster); gris = ruido de DBSCAN |
 | `results/point_clouds/segmentacion_final.ply` | Nube submuestreada coloreada por clase |
 | `results/point_clouds/etapa1_estructura.ply` | Resultado de la etapa 1 (piso, techo, plataformas) |
 | `results/labels/clases_final_completa.npy` | Clase de cada punto de la nube original |
+| `results/labels/segmentos_completa.npy` | Segmento de cada punto de la nube original (-1 = ruido) |
 | `results/metricas/conteo_clases_nube_completa.csv` | Número y porcentaje de puntos por clase |
-| `results/figures/00_*.png` a `05_*.png` | Proyecciones de cada etapa |
+| `results/metricas/segmentos.csv` | Origen, clase, tamaño y extensión de cada segmento |
+| `results/figures/00_*.png` a `05_*.png`, `07_segmentos.png` | Proyecciones de cada etapa y de los segmentos |
 
 Opciones: `--voxel` (tamaño de vóxel en metros, por defecto 0.08), `--surface-eps` (eps de DBSCAN para superficies, por defecto 0.15) e `--input` (ruta a otra nube PLY con normales).
 
@@ -131,7 +134,7 @@ Opciones: `--voxel` (tamaño de vóxel en metros, por defecto 0.08), `--surface-
 python -m pytest
 ```
 
-Ejecuta 31 pruebas en unos segundos: cada etapa por separado y el pipeline completo sobre una escena sintética con clases conocidas (piso, techo, columnas, tubería, viga y máquina).
+Ejecuta 33 pruebas en unos segundos: cada etapa por separado y el pipeline completo sobre una escena sintética con clases conocidas (piso, techo, columnas, tubería, viga y máquina).
 
 ### 6.3. Evaluación
 
@@ -151,7 +154,7 @@ Tarda alrededor de 2 minutos y genera:
 jupyter notebook notebooks/segmentacion_actividad3.ipynb
 ```
 
-Recorre cada etapa con sus experimentos y genera las capturas 3D para el reporte (`results/figures/10_*` a `21_*`). Se guarda con sus salidas, por lo que puede revisarse sin ejecutarlo. Lee las tablas de `results/metricas/` incluidas en el repositorio; si se cambian parámetros, conviene regenerarlas antes con `python -m src.evaluation`.
+Recorre cada etapa con sus experimentos y genera las capturas 3D para el reporte (`results/figures/10_*` a `23_*`, incluidas vistas por segmento y acercamientos). Se guarda con sus salidas, por lo que puede revisarse sin ejecutarlo. Lee las tablas de `results/metricas/` incluidas en el repositorio; si se cambian parámetros, conviene regenerarlas antes con `python -m src.evaluation`.
 
 ### 6.5. Visualización
 

@@ -177,3 +177,26 @@ def test_full_pipeline_overall_accuracy(segmented):
     pred, truth = segmented
     assert (pred == truth).mean() > 0.95
     assert not np.isin(pred, [C.UNLABELED, C.HORIZONTAL_OTHER]).any()
+
+
+def test_detect_columns_returns_one_id_per_column():
+    rng = np.random.default_rng(5)
+    a = np.c_[rng.uniform(0, 0.5, (1500, 2)), rng.uniform(0, 8, 1500)]
+    b = np.c_[rng.uniform(4, 4.5, (1500, 2)), rng.uniform(0, 8, 1500)]
+    ids = C.detect_columns(np.vstack([a, b]), floor_z=0.0, return_ids=True)
+    assert len(np.unique(ids[:1500])) == 1 and len(np.unique(ids[1500:])) == 1
+    assert ids[0] != ids[-1] and ids.min() >= 0
+
+
+def test_build_segments_on_scene(scene):
+    """Cada columna es un segmento propio y los segmentos no se solapan entre etapas."""
+    data, truth = scene
+    s1 = C.stage1_structure(data)
+    s2 = C.stage2_objects(data, s1)
+    segments, sources = C.build_segments(s1, s2)
+    assert segments.max() == len(sources) - 1
+    col_segs = np.unique(segments[truth == C.COLUMN])
+    col_segs = col_segs[col_segs >= 0]
+    assert len(col_segs) == 2 and set(sources[col_segs]) == {"columna"}
+    floor_segs = np.unique(segments[(truth == C.FLOOR) & (segments >= 0)])
+    assert set(sources[floor_segs]) == {"superficie"}

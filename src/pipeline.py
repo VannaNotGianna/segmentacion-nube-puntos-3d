@@ -12,7 +12,7 @@ import matplotlib
 import numpy as np
 import pandas as pd
 
-from .clustering import (CLASS_NAMES, MATERIAL_NAMES, OTHER, stage1_structure,
+from .clustering import (CLASS_NAMES, MATERIAL_NAMES, OTHER, build_segments, stage1_structure,
                          stage2_objects, transfer_labels)
 from .preprocessing import load_point_cloud, remove_outliers, to_arrays, voxel_downsample
 from .visualization import colors_from_classes, colors_from_segments, plot_projections, save_colored_ply
@@ -124,7 +124,44 @@ def main():
     save_colored_ply(out_ply, full.points, colors_from_classes(full_classes), full.normals)
     np.save(label_dir / "clases_final_completa.npy", full_classes)
     print(f"  PLY entregable: {_display_path(out_ply)}")
+
+    print("Segmentos geométricos (clusters de todas las etapas)")
+    segments, sources = build_segments(s1, s2)
+    table = segment_table(data.points, segments, sources, s2["classes"], s2["floor_z"])
+    full_segments, _ = transfer_labels(full.points, data.points, segments,
+                                       max_dist=max_dist, far_label=-1)
+    table["puntos_nube_completa"] = np.bincount(
+        full_segments[full_segments >= 0], minlength=len(table))
+    table.to_csv(metric_dir / "segmentos.csv", index=False)
+    in_seg = segments >= 0
+    print(f"  {len(table):,} segmentos; {in_seg.mean():.1%} de los puntos pertenece a uno "
+          f"(el resto es ruido de DBSCAN, que solo recibe clase)")
+    print(table.groupby("origen", sort=False).size().to_string())
+    seg_colors = colors_from_segments(full_segments)
+    save_colored_ply(pc_dir / "segmentos_individuales.ply", full.points, seg_colors, full.normals)
+    np.save(label_dir / "segmentos_completa.npy", full_segments)
+    plot_projections(data.points, colors_from_segments(segments), fig_dir / "07_segmentos.png",
+                     "Segmentos geométricos: un color por cluster (gris = ruido de DBSCAN)")
     print("Resultados guardados en results/")
+
+
+def segment_table(points, segments, sources, classes, floor_z) -> pd.DataFrame:
+    """Una fila por segmento: origen, clase mayoritaria, tamaño y extensión."""
+    m = segments >= 0
+    df = pd.DataFrame({"segmento": segments[m], "clase": classes[m],
+                       "x": points[m, 0], "y": points[m, 1], "z": points[m, 2]})
+    g = df.groupby("segmento")
+    out = pd.DataFrame({
+        "segmento": np.arange(len(sources)),
+        "origen": sources,
+        "clase": g["clase"].agg(lambda c: CLASS_NAMES[int(c.mode().iloc[0])]).values,
+        "pureza_clase": g["clase"].agg(lambda c: c.value_counts(normalize=True).iloc[0]).values,
+        "puntos": g.size().values,
+    })
+    for ax in "xyz":
+        out[f"extension_{ax}"] = (g[ax].max() - g[ax].min()).values
+    out["z_min_sobre_piso"] = (g["z"].min() - floor_z).values
+    return out
 
 
 if __name__ == "__main__":

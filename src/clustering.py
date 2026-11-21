@@ -222,26 +222,30 @@ def vertical_coverage(points: np.ndarray, floor_z: float,
 
 def detect_columns(points: np.ndarray, floor_z: float, min_height: float = 5.0,
                    eps: float = 0.35, min_samples: int = 20,
-                   max_footprint: float = 2.5) -> np.ndarray:
+                   max_footprint: float = 2.5, return_ids: bool = False) -> np.ndarray:
     """Máscara de puntos pertenecientes a columnas.
 
     1. Se conservan los puntos cuya celda XY cubre al menos `min_height` m.
     2. DBSCAN en 2D (solo XY) agrupa esas celdas en candidatos.
     3. Un candidato es columna si su huella XY es menor a `max_footprint` m
        por lado y su altura supera `min_height` m.
+
+    Con `return_ids=True` devuelve, en lugar de la máscara, el número de grupo
+    de cada punto (0, 1, ...; -1 si no pertenece a una columna).
     """
     tall = vertical_coverage(points, floor_z) >= min_height
     idx = np.flatnonzero(tall)
-    is_column = np.zeros(len(points), dtype=bool)
-    if len(idx) == 0:
-        return is_column
-    labels = DBSCAN(eps=eps, min_samples=min_samples).fit_predict(points[idx, :2])
-    for s in np.unique(labels[labels >= 0]):
-        members = idx[labels == s]
-        ext = np.ptp(points[members], axis=0)
-        if ext[0] < max_footprint and ext[1] < max_footprint and ext[2] > min_height:
-            is_column[members] = True
-    return is_column
+    ids = np.full(len(points), -1)
+    if len(idx) > 0:
+        labels = DBSCAN(eps=eps, min_samples=min_samples).fit_predict(points[idx, :2])
+        next_id = 0
+        for s in np.unique(labels[labels >= 0]):
+            members = idx[labels == s]
+            ext = np.ptp(points[members], axis=0)
+            if ext[0] < max_footprint and ext[1] < max_footprint and ext[2] > min_height:
+                ids[members] = next_id
+                next_id += 1
+    return ids if return_ids else ids >= 0
 
 
 # --------------------------------------------------------------------------- #
@@ -391,6 +395,7 @@ def stage2_objects(data: PointCloudData, stage1: dict, n_colors: int = 5,
     Devuelve un dict con:
       classes:   clase final por punto (toda la nube)
       objects:   id de objeto por punto (-1 fuera de la etapa 2 o ruido)
+      columns:   id de grupo de columna por punto (-1 si no es columna)
       materials: material por punto (-1 fuera de la etapa 2 o columnas)
       colors:    resumen de clusters de color [(rgb medio, material)]
       floor_z:   altura de referencia del piso
@@ -401,7 +406,8 @@ def stage2_objects(data: PointCloudData, stage1: dict, n_colors: int = 5,
     rest = data.subset(todo)
 
     # 2a: columnas
-    is_column = detect_columns(rest.points, floor_z)
+    column_ids = detect_columns(rest.points, floor_z, return_ids=True)
+    is_column = column_ids >= 0
     classes[todo[is_column]] = COLUMN
 
     # 2b-2d: material, objetos y clase sobre lo que no es columna
@@ -418,5 +424,45 @@ def stage2_objects(data: PointCloudData, stage1: dict, n_colors: int = 5,
     objects[others] = obj_ids
     mat_full = np.full(len(data), -1)
     mat_full[others] = materials
-    return {"classes": classes, "objects": objects, "materials": mat_full,
-            "colors": color_summary, "floor_z": floor_z}
+    col_full = np.full(len(data), -1)
+    col_full[todo] = column_ids
+    return {"classes": classes, "objects": objects, "columns": col_full,
+            "materials": mat_full, "colors": color_summary, "floor_z": floor_z}
+
+
+# --------------------------------------------------------------------------- #
+# Segmentos geométricos (todas las etapas)
+# --------------------------------------------------------------------------- #
+SEGMENT_SOURCES = ("superficie", "columna", "objeto")
+
+
+def build_segments(stage1: dict, stage2: dict):
+    """Une los clusters de todas las etapas en un único id de segmento por punto.
+
+    - superficie: componente DBSCAN de la etapa 1b etiquetada como piso,
+      techo o plataforma;
+    - columna: grupo de la etapa 2a;
+    - objeto: componente DBSCAN de la etapa 2c (dentro de un material).
+
+    Un segmento es un componente espacial encontrado por clustering, no
+    necesariamente un objeto físico completo. Los puntos de ruido de DBSCAN no
+    pertenecen a ningún segmento (-1), aunque sí reciben una clase.
+
+    Devuelve (id de segmento por punto, origen de cada segmento).
+    """
+    n = len(stage1["classes"])
+    segments = np.full(n, -1)
+    sources = []
+    surf = stage1["surfaces"]
+    structural = np.isin(stage1["classes"], [FLOOR, CEILING, PLATFORM]) & (surf >= 0)
+    for name, ids in (("superficie", np.where(structural, surf, -1)),
+                      ("columna", stage2["columns"]),
+                      ("objeto", stage2["objects"])):
+        uniq, inv = np.unique(ids, return_inverse=True)
+        valid = uniq >= 0
+        new = np.full(len(uniq), -1)
+        new[valid] = len(sources) + np.arange(valid.sum())
+        mapped = new[inv.ravel()]
+        segments = np.where(mapped >= 0, mapped, segments)
+        sources += [name] * int(valid.sum())
+    return segments, np.array(sources)

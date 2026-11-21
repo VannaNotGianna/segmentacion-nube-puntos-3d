@@ -28,9 +28,11 @@ def colors_from_classes(classes: np.ndarray, palette: dict = CLASS_COLORS) -> np
 def colors_from_segments(seg_labels: np.ndarray, seed: int = 0) -> np.ndarray:
     """Color aleatorio por segmento (útil para revisar DBSCAN); ruido en gris."""
     rng = np.random.default_rng(seed)
-    uniq = np.unique(seg_labels)
-    table = {s: rng.uniform(0.15, 0.95, 3) for s in uniq if s >= 0}
-    return np.array([table.get(s, (0.75, 0.75, 0.75)) for s in seg_labels])
+    uniq, inv = np.unique(seg_labels, return_inverse=True)
+    table = np.full((len(uniq), 3), 0.75)
+    valid = uniq >= 0
+    table[valid] = rng.uniform(0.15, 0.95, (int(valid.sum()), 3))
+    return table[inv.ravel()]
 
 
 def save_colored_ply(path, points: np.ndarray, colors: np.ndarray, normals=None) -> None:
@@ -82,22 +84,29 @@ VIEWS = {
 }
 
 
-def render_view(points: np.ndarray, colors: np.ndarray, path, view: str = "aerea",
+def render_view(points: np.ndarray, colors: np.ndarray, path, view: str | dict = "aerea",
                 width: int = 1600, height: int = 900, point_size: float = 2.0,
-                hide_above: float | None = None) -> None:
+                hide_above: float | None = None, crop=None) -> None:
     """Guarda una captura 3D de la nube con colores por punto.
 
     Usa una ventana oculta de Open3D (el renderizador offscreen devuelve una
     imagen negra en algunos equipos Windows). `hide_above` permite quitar los
     puntos por encima de cierta Z (p. ej. el techo) para ver el interior.
+    `view` es el nombre de una cámara de VIEWS o un dict con el mismo formato.
+    `crop` = ((xmin, ymin, zmin), (xmax, ymax, zmax)) recorta una región para
+    los acercamientos; la cámara mira al centro de la región recortada.
     """
+    keep = np.ones(len(points), dtype=bool)
     if hide_above is not None:
-        keep = points[:, 2] <= hide_above
-        points, colors = points[keep], colors[keep]
+        keep &= points[:, 2] <= hide_above
+    if crop is not None:
+        lo, hi = np.asarray(crop[0]), np.asarray(crop[1])
+        keep &= np.all((points >= lo) & (points <= hi), axis=1)
+    points, colors = points[keep], colors[keep]
     pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(points))
     pcd.colors = o3d.utility.Vector3dVector(np.clip(colors, 0, 1))
 
-    cfg = VIEWS[view]
+    cfg = VIEWS[view] if isinstance(view, str) else view
     vis = o3d.visualization.Visualizer()
     vis.create_window(width=width, height=height, visible=False)
     try:
