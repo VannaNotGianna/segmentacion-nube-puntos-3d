@@ -11,6 +11,7 @@ data/processed/*
 # Generated results
 results/labels/*
 results/point_clouds/*
+!results/point_clouds/segmentacion_final_completa.ply
 results/figures/*
 
 # Local files
