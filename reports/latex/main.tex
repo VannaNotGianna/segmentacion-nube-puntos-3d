@@ -17,9 +17,8 @@
 \usepackage{enumitem}
 \usepackage{xcolor}
 \usepackage{tikz}
-\usetikzlibrary{positioning,babel}
+\usetikzlibrary{positioning,babel,arrows.meta,fit,backgrounds}
 \usepackage[hidelinks]{hyperref}
-
 \graphicspath{{figuras/}}
 \setlist{itemsep=2pt}
 
@@ -101,25 +100,131 @@ columnas) se separan primero porque conectan físicamente al resto de objetos;
 sin ese paso, DBSCAN une casi todo en un único cluster.
 
 \begin{figure}[H]
-  \centering
-  \begin{tikzpicture}[
-      node distance=4mm,
-      etapa/.style={draw, rounded corners, align=center, text width=12.5cm,
-                    inner sep=5pt, font=\small},
-      flecha/.style={->, thick}]
-    \node[etapa] (pre) {\textbf{Preprocesamiento:} submuestreo por vóxel (0.08\,m) y filtro de outliers};
-    \node[etapa, below=of pre] (e1a) {\textbf{Etapa 1a -- Orientación:} K-Means ($K{=}3$) sobre $|\mathbf{n}|$};
-    \node[etapa, below=of e1a] (e1b) {\textbf{Etapa 1b -- Superficies:} DBSCAN sobre XYZ de los puntos horizontales + reglas $\Rightarrow$ piso, techo, plataformas};
-    \node[etapa, below=of e1b] (e2a) {\textbf{Etapa 2a -- Columnas:} cobertura vertical en planta + DBSCAN 2D sobre XY};
-    \node[etapa, below=of e2a] (e2b) {\textbf{Etapa 2b -- Materiales:} K-Means ($K{=}5$) sobre el color};
-    \node[etapa, below=of e2b] (e2c) {\textbf{Etapa 2c -- Segmentos y clases:} DBSCAN por material + reglas de material y altura $\Rightarrow$ tubería, viga/estructura, maquinaria};
-    \node[etapa, below=of e2c] (e2e) {\textbf{Etapa 2d -- Suavizado:} voto mayoritario entre los 10 vecinos más cercanos};
-    \node[etapa, below=of e2e] (tr) {\textbf{Transferencia:} cada punto de la nube original toma la clase y el segmento del vecino más cercano};
-    \foreach \a/\b in {pre/e1a, e1a/e1b, e1b/e2a, e2a/e2b, e2b/e2c, e2c/e2e, e2e/tr}
-      \draw[flecha] (\a) -- (\b);
-  \end{tikzpicture}
-  \caption{Etapas del procedimiento de segmentación.}
-  \label{fig:pipeline}
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  font=\scriptsize,
+  >=Latex,
+  nodo/.style={
+    draw=black,
+    rounded corners=3pt,
+    align=center,
+    inner sep=5pt,
+    minimum height=11mm
+  },
+  fase/.style={
+    draw=black,
+    dashed,
+    rounded corners=5pt,
+    inner sep=7pt
+  },
+  flujo/.style={
+    ->,
+    >=Latex,
+    thick
+  }
+]
+
+% ENTRADA
+\node[nodo, text width=1.6cm] (entrada) {
+  \textbf{Entrada}\\
+  Nube de puntos\\
+  XYZ + RGB\\
+  + normales
+};
+
+% FASE 1
+\node[nodo, right=11mm of entrada,
+      text width=2.8cm] (pre) {
+  \textbf{Preprocesamiento}\\[1mm]
+  Vóxel (0.08 m)\\
+  Filtro de outliers
+};
+
+% FASE 2
+\node[nodo, right=16mm of pre,
+      text width=2.7cm] (orient) {
+  \textbf{Orientación}\\
+  K-Means ($K=3$)\\
+  sobre $|\mathbf{n}|$
+};
+
+\node[nodo, below=5mm of orient,
+      text width=2.7cm] (super) {
+  \textbf{Superficies}\\
+  DBSCAN sobre XYZ\\
+  Piso, techo, plataformas
+};
+
+% FASE 3
+\node[nodo, right=16mm of orient,
+      text width=2.5cm] (cols) {
+  \textbf{Columnas}\\
+  Cobertura vertical\\
+  DBSCAN 2D (XY)
+};
+
+\node[nodo, below=5mm of cols,
+      text width=2.5cm] (mat) {
+  \textbf{Materiales}\\
+  K-Means ($K=5$)\\
+  Color (HSV)
+};
+
+\node[nodo, right=5mm of cols,
+      text width=2.9cm] (clas) {
+  \textbf{Segmentos y clases}\\
+  DBSCAN por material\\
+  Reglas de material y altura
+};
+
+\node[nodo, below=5mm of clas,
+      text width=2.9cm] (smooth) {
+  \textbf{Suavizado}\\
+  Voto mayoritario\\
+  KNN (10 vecinos)
+};
+
+% SALIDA
+\node[nodo, right=12mm of clas,
+      text width=2.6cm] (trans) {
+  \textbf{Transferencia}\\
+  Vecino más cercano\\
+  Clase y segmento
+};
+
+% CONEXIONES
+\draw[flujo] (entrada) -- (pre);
+\draw[flujo] (pre) -- (orient);
+\draw[flujo] (orient) -- (super);
+\draw[flujo] (super.east) -- ++(6mm,0)
+  |- (cols.west);
+
+\draw[flujo] (cols) -- (mat);
+\draw[flujo] (mat.east) -- ++(5mm,0)
+  |- (clas.south);
+
+\draw[flujo] (clas) -- (smooth);
+\draw[flujo] (smooth.east) -- ++(5mm,0)
+  |- (trans.south);
+  
+% AGRUPACIÓN DE FASES
+\node[fase, fit=(pre),
+  label={[font=\scriptsize\bfseries]above:
+  Fase 1: Preparación}] {};
+
+\node[fase, fit=(orient)(super),
+  label={[font=\scriptsize\bfseries]above:
+  Fase 2: Geometría}] {};
+
+\node[fase, fit=(cols)(mat)(clas)(smooth),
+  label={[font=\scriptsize\bfseries]above:
+  Fase 3: Segmentación}] {};
+
+\end{tikzpicture}%
+}
+\caption{Pipeline horizontal del procedimiento de segmentación.}
+\label{fig:pipeline}
 \end{figure}
 
 \subsection{Preprocesamiento}
